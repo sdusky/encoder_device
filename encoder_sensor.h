@@ -30,7 +30,7 @@ private:
     ********************************************************************************/
     void set_send_interval(int msec);
     /*******************************************************************************
-    Function:       void set_send_interval();
+    Function:       void get_name_length();
     Description:    获取各传感器标示长度
     Calls:
     Input:
