@@ -29,25 +29,30 @@ int encoder_v4l2::v4l2_check(char *dev_name, struct video_information *vd_info)
     return 1;
 }
 
-int encoder_v4l2::v4l2_init(char *dev_name, struct video_information *vd_info, camera_information cam_info,encoded_picture_information *encoded_pic)
+int encoder_v4l2::v4l2_init(char *dev_name, struct video_information *vd_info, camera_information cam_info)
 {
     video_info = vd_info;
     camera_info.cam_format = cam_info.cam_format;
     camera_info.cam_height = cam_info.cam_height;
     camera_info.cam_width  = cam_info.cam_width;
-    pic_info = encoded_pic;
-    encoded_pic->buffer = (unsigned char *)malloc(
-                sizeof(cam_info.cam_height * cam_info.cam_width *2));
+    current_pic.buffer = NULL;
+    current_pic.height = cam_info.cam_height;
+    current_pic.width = cam_info.cam_width;
+    current_pic.buffer = (unsigned char *)malloc(
+                cam_info.cam_height * cam_info.cam_width * 3 / 2);
+
+    if(current_pic.buffer != NULL)
+        qDebug()<<cam_info.cam_height<<"," << cam_info.cam_width;
 
     int i;
-    /*initialize the given data*/
+    ///initialize the given data*
     vd_info->format = cam_info.cam_format;
     vd_info->width = cam_info.cam_width;
     vd_info->height = cam_info.cam_height;
     vd_info->is_quit = 1;
     vd_info->frame_size_in = (vd_info->width * vd_info->height << 1);   //这个參数不清楚
 
-    /*分配内存,因为YUYV是一种原始数据,可以直接显示,不需要编解码,而mjpeg格式的,需要解码,所以要分配两个缓冲区*/
+    ///分配内存,因为YUYV是一种原始数据,可以直接显示,不需要编解码,而mjpeg格式的,需要解码,所以要分配两个缓冲区*/
     switch(vd_info->format)
     {
     case V4L2_PIX_FMT_MJPEG:
@@ -71,7 +76,7 @@ int encoder_v4l2::v4l2_init(char *dev_name, struct video_information *vd_info, c
             perror("Class V4L2: calloc frame_buffer_yuyv");
             return -1;
         }*/
-        //add
+        ///分配原始帧所需内存
         vd_info->tmp_buffer = (unsigned char *)calloc(1,(size_t)vd_info->frame_size_in);
         if(vd_info->tmp_buffer == NULL)
         {
@@ -83,7 +88,7 @@ int encoder_v4l2::v4l2_init(char *dev_name, struct video_information *vd_info, c
         return -1;
         break;
     }
-    //打开,以阻塞方式打开.
+    ///打开,以阻塞方式打开.
 
     vd_info->fd = open(dev_name,O_RDWR,0);
     if(vd_info->fd < 0)
@@ -105,22 +110,22 @@ int encoder_v4l2::v4l2_init(char *dev_name, struct video_information *vd_info, c
         perror("Class V4L2: video capture not supported:");
         return -1;
     }
-    /*set format*/
+    ///set format
     v4l2_set_format(vd_info,cam_info);
-    /*set param*/
+    ///set param
     v4l2_set_streamparam(vd_info);
-    /*request buffers*/
+    ///request buffers
     memset(&vd_info->rb,0,sizeof(struct v4l2_requestbuffers));
     vd_info->rb.count = NB_BUFFER;
     vd_info->rb.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     vd_info->rb.memory = V4L2_MEMORY_MMAP;
-    /*VIDIOC_REQBUFS：分配内存*/
+    ///VIDIOC_REQBUFS：获取内存
     if(-1 == ioctl(vd_info->fd,VIDIOC_REQBUFS,&vd_info->rb))
     {
         perror("Class V4L2: request_buffer:");
         return -1;
     }
-    /*map the buffers(4 buffer)映射到用戶空间内存*/
+    ///map the buffers(4 buffer)映射到用戶空间内存
     for(i = 0;i< NB_BUFFER;i++)
     {
         memset(&vd_info->buf,0,sizeof(struct v4l2_buffer));
@@ -149,7 +154,7 @@ int encoder_v4l2::v4l2_init(char *dev_name, struct video_information *vd_info, c
             return -1;
         }
     }
-    //queue the buffers 进入队列
+    ///queue the buffers 进入队列
     for(i = 0;i < NB_BUFFER;i++)
     {
         memset(&vd_info->buf,0,sizeof(struct v4l2_buffer));
@@ -286,14 +291,6 @@ int encoder_v4l2::v4l2_set_format(struct video_information *vd_info, camera_info
 
     }while(ret==-1 && errno==EAGAIN);
 
-    /*
-    switch(std)
-    {
-    case V4L2_STD_NTSC: cout<<"ntsc"; break;
-    case V4L2_STD_PAL:  cout<<"pal";break;
-    default: ;
-    }*/
-
     /*设置视频帧格式.*/
     if(ioctl(vd_info->fd,VIDIOC_S_FMT,&(vd_info->fmt)))
     {
@@ -306,7 +303,7 @@ int encoder_v4l2::v4l2_set_format(struct video_information *vd_info, camera_info
 int encoder_v4l2::v4l2_on(struct video_information *vd_info)
 {
     vd_info->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-    /*VIDIOC_STREAMON 开始视频的采集*/
+    ///VIDIOC_STREAMON 开始视频的采集*
     if(-1 == ioctl(vd_info->fd,VIDIOC_STREAMON,&vd_info->type))
     {
         perror("Class V4L2: v4l2_on\n");
@@ -320,7 +317,7 @@ int encoder_v4l2::v4l2_on(struct video_information *vd_info)
 int encoder_v4l2::v4l2_off(video_information *vd_info)
 {
     vd_info->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-    /*结束视频显示函数  VIDIOC_STREAMOFF*/
+    ///结束视频显示函数  VIDIOC_STREAMOFF
     if(-1 == ioctl(vd_info->fd,VIDIOC_STREAMOFF,&vd_info->type))
     {
         perror("Class V4L2: v4l2_off:");
@@ -337,7 +334,7 @@ int encoder_v4l2::v4l2_set_streamparam(struct video_information *vd_info)
     vd_info->parm.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     vd_info->parm.parm.capture.timeperframe.denominator = 30;
     vd_info->parm.parm.capture.timeperframe.numerator = 1;
-    vd_info->parm.parm.output.timeperframe.denominator = 25;
+    vd_info->parm.parm.output.timeperframe.denominator = 15;
     vd_info->parm.parm.output.timeperframe.numerator = 1;
     if(-1 == ioctl(vd_info->fd,VIDIOC_S_PARM,&vd_info->parm))
     {
@@ -383,11 +380,6 @@ int encoder_v4l2::v4l2_yuv422_to_rgb888_pixel(int y, int u, int v)
     unsigned int pixel32 = 0;
     unsigned char *pixel = (unsigned char*)&pixel32;
     int r, g, b;
-/*
-    r = y + (1370705 * (v-128) / 1000000);
-    g = y - (698001 * (v-128) / 1000000) - (337633 * (u-128) / 1000000);
-    b = y + (1732446 * (u-128) / 1000000);
-*/
     r = y + ((1437289 * (v - 128)) >> 20);
     g = y - (((731907  * (v - 128)) + (354034 * (u - 128))) >> 20);
     b = y + ((1816601 * (u - 128)) >> 20);
@@ -417,10 +409,13 @@ void encoder_v4l2::v4l2_yuv422_to_yuv420(unsigned char *yuv422, unsigned char *y
     {
         for(j = 0; j < (int)cam_info.cam_width; j+=2)
         {
-            pY[j] = *pYUVTemp++;
-            pY[j + cam_info.cam_width] = *pYUVTempNext++;
 
+            pY[j] = *pYUVTemp++;
+
+            pY[j + cam_info.cam_width] = *pYUVTempNext++;
+            //qDebug()<<"Convert i:"<<i<<",j:"<<j;
             pU[j/2] =(*(pYUVTemp) + *(pYUVTempNext)) / 2;
+
             pYUVTemp++;
             pYUVTempNext++;
 
@@ -441,12 +436,12 @@ void encoder_v4l2::v4l2_yuv422_to_yuv420(unsigned char *yuv422, unsigned char *y
 
 void encoder_v4l2::v4l2_capture()
 {
-
     if( v4l2_grab() == 1)
-    {
-        v4l2_yuv422_to_yuv420(video_info->tmp_buffer,pic_info->buffer,camera_info);
-        pic_info->timestamp.tv_sec = video_info->buf.timestamp.tv_sec;
-        pic_info->timestamp.tv_usec = video_info->buf.timestamp.tv_usec;
+    { 
+        v4l2_yuv422_to_yuv420(video_info->tmp_buffer,current_pic.buffer,camera_info);
+        current_pic.timestamp.tv_sec = video_info->buf.timestamp.tv_sec;
+        current_pic.timestamp.tv_usec = video_info->buf.timestamp.tv_usec;
+
         emit need_to_encoder();
     }
 }

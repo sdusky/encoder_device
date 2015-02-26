@@ -1,9 +1,3 @@
-/*************************************************
-Copyright  :邢大天
-Author     :邢大天
-Date       :2014-06-06
-Description:Video For Linux 2 摄像头采集
-**************************************************/
 /************************命令标志符********************************
         VIDIOC_REQBUFS  ：  分配内存
         VIDIOC_QUERYBUF ：  把VIDIOC_REQBUFS中分配的数据缓存转换成物理地址
@@ -43,233 +37,176 @@ Description:Video For Linux 2 摄像头采集
 #include "encoder_package.h"
 
 using namespace std;
+
+/**
+ * @brief Video For Linux 2 摄像头采集封装 v4l2_api
+ *        邢大天 2014-06-06
+ *
+ */
 class encoder_v4l2 : public QObject
 {
     Q_OBJECT
 public:
     explicit encoder_v4l2(QObject *parent = 0);
-    /*******************************************************************************
-    Function:       int v4l2_check(char *dev_name,struct video_information *vd_info);
-    Description:    检查摄像头状态、功能及格式
-    Calls:          1.int v4l2_get_capability(struct video_information *vd_info);
-                    2.int v4l2_get_format(struct video_information *vd_info);
-    Input:          char *dev_name                    摄像头设备名称 /dev/video0
-                    struct video_information *vd_info 结构体 定义位于common.h
-    Output:         int
-    Return:         错误返回 -1
-                    正确返回  1
-    Others:         步骤：1.阻塞方式打开设备
-                         2.调用v4l2_get_capability获取V4L2设备信息
-                         3.调用v4l2_get_format获取摄像头支持格式
-                         4.关闭摄像头，返回
-    ********************************************************************************/
+
+    /**
+     * @brief 检查摄像头状态、功能及格式
+     * @see   1.int v4l2_get_capability(struct video_information *vd_info);
+     *        2.int v4l2_get_format(struct video_information *vd_info);
+     * @other  步骤：1.阻塞方式打开设备
+     *              2.调用v4l2_get_capability获取V4L2设备信息
+     *              3.调用v4l2_get_format获取摄像头支持格式
+     *              4.关闭摄像头，返回
+     * @param dev_name 摄像头名称
+     * @param vd_info  采集信息结构体
+     * @return int     返回码
+     */
     int v4l2_check(char *dev_name,struct video_information *vd_info);
 
-    /*******************************************************************************
-    Function:       int v4l2_init(char* dev_name,struct video_information *vd_info, \
-                                                 struct camera_infomation cam_info);
-    Description:    初始化摄像头
-    Calls:          1.int v4l2_set_format(struct video_information *vd_info,\
-                        struct camera_infomation cam_info);
-                    2.int v4l2_set_streamparam(struct video_information *vd_info);
-                    3.int v4l2_on(struct video_information *vd_info);
-    Input:          char *dev_name 摄像头设备名称 /dev/video0
-                    struct video_information *vd_info 结构体 定义位于common.h
-                    struct camera_infomation cam_info 结构体 定义位于common.h
-                    encoded_picture_information encoded_pic
-    Output:         int
-    Return:         错误返回 -1
-                    正确返回  1
-    Others:         步骤：1.设置摄像头输出信息 高、宽、采集格式
-                         2.根据格式分配内存：（1）MJPEG frame_buffer解码 tmp_buffer
-                                          （2）YUYV  tmp_buffer
-                         3.阻塞打开获取capability
-                         4.设置输出格式
-                         5.设置流参数 包括帧数
-                         6.申请缓冲区                VIDIOC_REQBUFS
-                         7.将缓冲区映射至应用程序内存   mmap()
-                         8.缓冲帧放入缓冲队列
-                         9.启动流
-    ********************************************************************************/
+    /**
+     * @brief 摄像头采集初始化
+     * @other步骤：       1.设置摄像头输出信息 高、宽、采集格式
+     *                   2.根据格式分配内存：（1）MJPEG frame_buffer解码 tmp_buffer
+     *                                    （2）YUYV  tmp_buffer
+     *                   3.阻塞打开获取capability
+     *                   4.设置输出格式
+     *                   5.设置流参数 包括帧数
+     *                   6.申请缓冲区                VIDIOC_REQBUFS
+     *                   7.将缓冲区映射至应用程序内存   mmap()
+     *                   8.缓冲帧放入缓冲队列
+     *                   9.启动流
+     * @see              1.int v4l2_set_format(struct video_information *vd_info,\
+     *                          struct camera_infomation cam_info);
+     * @see              2.int v4l2_set_streamparam(struct video_information *vd_info);
+     * @see              3.int v4l2_on(struct video_information *vd_info);
+     * @param dev_name   设备名称
+     * @param vd_info    采集信息
+     * @param cam_info   摄像头参数
+     * @return int       返回码
+     */
     int v4l2_init(char* dev_name,struct video_information *vd_info, \
-                  struct camera_information cam_info,encoded_picture_information *encoded_pic);
+                  struct camera_information cam_info);
 
-    /*******************************************************************************
-    Function:       void v4l2_yuv422_to_rgb888(unsigned char *yuv422,unsigned char *rgb888,\
-                              struct camera_information cam_info);
-    Description:    YUYV转换为RGB888 显示用
-    Calls:          int v4l2_yuv422_to_rgb888_pixel(int y,int u,int v);
-    Input:          unsigned char *yuv422    原始YUV数据 YUYV YUYV 内存 w * h * 2
-                    unsigned char *rgb888    RGB888数据  RGBRGB   内存 w * h * 3
-                    struct camera_information cam_info结构体 定义位于common.h
-    Output:         无
-    Return:
-    Others:         步骤：1.将YUV图像分为4个字节1组Y0 U Y1 V
-                         2.将Y0 U V与 Y1 U V分别送入v4l2_yuv422_to_rgb888_pixel函数
-                         3.得到RGB图像
-    ********************************************************************************/
+    /**
+     * @brief 色彩空间转换YUV422->RGB888
+     * @other       步骤：1.将YUV图像分为4个字节1组Y0 U Y1 V
+     *                   2.将Y0 U V与 Y1 U V分别送入v4l2_yuv422_to_rgb888_pixel函数
+     *                   3.得到RGB图像
+     * @see  int v4l2_yuv422_to_rgb888_pixel(int y,int u,int v);
+     * @param yuv422   YUV422空间 YUYV YUYV      内存 w * h * 2
+     * @param rgb888   RGB888空间 RGB  RGB       内存 w * h * 3
+     * @param cam_info 摄像头参数（宽，高）
+     */
     void v4l2_yuv422_to_rgb888(unsigned char *yuv422,unsigned char *rgb888,\
                               struct camera_information cam_info);
 
-    /*******************************************************************************
-    Function:       void v4l2_yuv422_to_yuv420(unsigned char *yuv422,unsigned char *yuv420,\
-                               struct camera_information cam_info);
-    Description:    YUYV转换为YUV420
-    Calls:
-    Input:          unsigned char *yuv422    原始YUV数据 YUYV YUYV      内存 w * h * 2
-                    unsigned char *yuv420    YUV420数据YYYY YYYY UU VV 内存 w * h * 3 /2
-                    struct camera_information cam_info结构体 定义位于common.h
-    Output:         无
-    Return:
-    Others:
-    ********************************************************************************/
+    /**
+     * @brief 色彩空间转换YUV422->RGB888
+     *
+     * @param yuv422 YUV422空间 YUYV YUYV      内存 w * h * 2
+     * @param yuv420 YUV420空间 YUV420数据YYYY YYYY UU VV 内存 w * h * 3 / 2
+     * @param cam_info
+     */
     void v4l2_yuv422_to_yuv420(unsigned char *yuv422,unsigned char *yuv420,\
                                struct camera_information cam_info);
 
-    /*******************************************************************************
-    Function:       int v4l2_close(struct video_information *vd_info);
-    Description:    关闭摄像头
-    Calls:
-    Input:          struct video_information *vd_info结构体 定义位于common.h
-    Output:         int
-    Return:         错误返回 -1
-                    正确返回  1
-    Others:
-    ********************************************************************************/
+    /**
+     * @brief 关闭摄像头
+     *
+     * @param vd_info 采集信息
+     * @return int    返回码
+     */
     int v4l2_close(struct video_information *vd_info);
 
 private:
 
-    /*******************************************************************************
-    Function:       int v4l2_get_capability(struct video_information *vd_info);
-    Description:    获取V4L2设备信息
-    Calls:
-    Input:          struct video_information *vd_info结构体 定义位于common.h
-    Output:         int
-    Return:         错误返回 -1
-                    正确返回  1
-    Others:         IOCTL    VIDIOC_QUERYCAP
-    ********************************************************************************/
+    /**
+     * @brief 获取V4L2设备信息
+     * @see   IOCTL    VIDIOC_QUERYCAP
+     * @param vd_info  采集信息
+     * @return int     返回码
+     */
     int v4l2_get_capability(struct video_information *vd_info);
 
-    /*******************************************************************************
-    Function:       int v4l2_get_format(struct video_information *vd_info);
-    Description:    获取摄像头支持格式并输出
-    Calls:
-    Input:          struct video_information *vd_info结构体 定义位于common.h
-    Output:         int
-    Return:         错误返回 -1
-                    正确返回  1
-    Others:         IOCTL    查询并显示所有支持的格式  VIDIOC_ENUM_FMT
-                             查看当前格式            VIDIOC_G_FMT
-    ********************************************************************************/
+    /**
+     * @brief 获取摄像头支持格式并输出
+     * @see   IOCTL    查询并显示所有支持的格式  VIDIOC_ENUM_FMT
+     * @see   IOCTL    查看当前格式            VIDIOC_G_FMT
+     * @param vd_info  采集信息
+     * @return int     返回码
+     */
     int v4l2_get_format(struct video_information *vd_info);
 
-    /*******************************************************************************
-    Function:       int v4l2_set_format(struct video_information *vd_info,\
-                        struct camera_information cam_info);
-    Description:    设置摄像头输出格式
-    Calls:
-    Input:          struct video_information *vd_info结构体 定义位于common.h
-                    struct camera_infomation cam_info结构体 定义位于common.h
-    Output:         int
-    Return:         错误返回 -1
-                    正确返回  1
-    Others:         IOCTL    设置当前格式            VIDIOC_S_FMT
-    ********************************************************************************/
+    /**
+     * @brief 设置摄像头输出格式
+     * @see   IOCTL    设置当前格式            VIDIOC_S_FMT
+     * @param vd_info  采集信息
+     * @param cam_info 摄像头信息
+     * @return int     返回码
+     */
     int v4l2_set_format(struct video_information *vd_info,\
                         struct camera_information cam_info);
 
-    /*******************************************************************************
-    Function:       int v4l2_on(struct video_information *vd_info);
-    Description:    开启捕捉
-    Calls:
-    Input:          struct video_information *vd_info结构体 定义位于common.h
-    Output:         int
-    Return:         错误返回 -1
-                    正确返回  1
-    Others:         IOCTL    开始视频的采集           VIDIOC_STREAMON
-    ********************************************************************************/
+    /**
+     * @brief 开始捕捉
+     * @see   IOCTL    开始视频的采集           VIDIOC_STREAMON
+     * @param vd_info  采集信息
+     * @return int     返回码
+     */
     int v4l2_on(struct video_information *vd_info);
 
-    /*******************************************************************************
-    Function:       int v4l2_off(struct video_information *vd_info);
-    Description:    关闭捕捉
-    Calls:
-    Input:          struct video_information *vd_info结构体 定义位于common.h
-    Output:         int
-    Return:         错误返回 -1
-                    正确返回  1
-    Others:         IOCTL    停止视频的采集           VIDIOC_STREAMOFF
-    ********************************************************************************/
+    /**
+     * @brief 关闭捕捉
+     * @see  IOCTL    停止视频的采集           VIDIOC_STREAMOFF
+     * @param vd_info 采集信息
+     * @return int    返回码
+     */
     int v4l2_off(struct video_information *vd_info);
 
-    /*******************************************************************************
-    Function:       int v4l2_set_streamparam(struct video_information *vd_info);
-    Description:    设置帧率
-    Calls:
-    Input:          struct video_information *vd_info结构体 定义位于common.h
-    Output:         int
-    Return:         错误返回 -1
-                    正确返回  1
-    Others:         IOCTL    设置采集帧率            VIDIOC_S_PARM
-    ********************************************************************************/
+    /**
+     * @brief 设置帧率
+     * @see   IOCTL    设置采集帧率            VIDIOC_S_PARM
+     * @param vd_info 采集信息
+     * @return int    返回码
+     */
     int v4l2_set_streamparam(struct video_information *vd_info);
 
-    /*******************************************************************************
-    Function:       int v4l2_yuv422_to_rgb888_pixel(int y,int u,int v);
-    Description:    YUV转RGB
-    Calls:
-    Input:          int y
-                    int u
-                    int v
-    Output:         int
-    Return:         RGB值
-    Others:         公式：  R = Y + 1.4075 *（V-128）
-                           G = Y – 0.3455 *（U –128） – 0.7169 *（V –128）
-                           B = Y + 1.779 *（U – 128）
-    ********************************************************************************/
+    /**
+     * @brief yuv转rgb
+     * @other       公式：  R = Y + 1.4075 *（V-128）
+     *                     G = Y – 0.3455 *（U –128） – 0.7169 *（V –128）
+     *                     B = Y + 1.779 *（U – 128）
+     * @param y
+     * @param u
+     * @param v
+     * @return int
+     */
     int v4l2_yuv422_to_rgb888_pixel(int y,int u,int v);
-    /*******************************************************************************
-    Function:       int v4l2_grab();
-    Description:    获取缓冲帧
-    Calls:
-    Input:
-    Output:         int
-    Return:         错误返回 -1
-                    正确返回  1
-    Others:         步骤：1.判断是否流开启
-                         2.出队列以取得已采集数据的帧缓冲，取得原始采集数据。VIDIOC_DQBUF
-                         3.将数据放入tmp_buffer
-    ********************************************************************************/
+
+    /**
+     * @brief 获取缓冲帧
+     * @other       步骤：1.判断是否流开启
+     *                   2.出队列以取得已采集数据的帧缓冲，取得原始采集数据。VIDIOC_DQBUF
+     *                   3.将数据放入tmp_buffer
+     * @return int  返回码
+     */
     int v4l2_grab();
     video_information           *video_info;
     camera_information          camera_info;
-    encoded_picture_information *pic_info;
+
 public slots:
-    /*******************************************************************************
-    Function:       （SLOT）void v4l2_capture();
-    Description:    V4L2采集
-    Calls:          QByteArray data要发送的信息
-    Input:          void v4l2_grab();
-                    void v4l2_yuv422_to_yuv420(unsigned char *yuv422, unsigned char *yuv420, camera_information cam_info)
-    Output:
-    Return:
-    Others:         调用v4l2_grab采集信息
-                    调用v4l2_yuv422_to_yuv420色彩空间转换
-                    发送need_to_encoder()信号，通知encoder进行编码
-    ********************************************************************************/
+
+    /**
+     * @brief 槽函数，采集
+     *
+     */
     void v4l2_capture();
 signals:
-    /*******************************************************************************
-    Signals:        void need_to_encoder();
-    Description:    向encoder_encoder类发送信号，触发其槽函数
-    Calls:
-    Input:
-    Output:         无
-    Return:
-    Others:
-    ********************************************************************************/
+
+    /**
+     * @brief 信号，编码当前帧
+     *
+     */
     void need_to_encoder();
 };
 

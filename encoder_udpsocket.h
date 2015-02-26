@@ -1,35 +1,49 @@
-/***************************************************************
-Copyright  :邢大天
-Author     :邢大天
-Date       :2014-12-05
-Description:encoder_tcpsocket
-            传输类
-****************************************************************/
 #ifndef ENCODER_UDPSOCKET_H
 #define ENCODER_UDPSOCKET_H
 
 #include <QUdpSocket>
 #include <QHostAddress>
 #include "encoder_package.h"
+
+/**
+ * @brief 信息发送类，继承自QUdpSocket
+ *        邢大天 2014-12-06
+ *
+ */
 class encoder_udpsocket : public QUdpSocket
 {
     Q_OBJECT
 public:
+
+    /**
+     * @brief 构造函数 设置服务器IP
+     *
+     * @param parent
+     */
     explicit encoder_udpsocket(QObject *parent = 0);
-    QHostAddress address;
+
+    QHostAddress host_address; /**< 服务器地址 */
+    QHostAddress decoder_address; /**< 解码器地址 */
+
 signals:
 
 public slots:
-    /*******************************************************************************
-    Function:       （SLOT）get_data_from_information(QByteArray data);
-    Description:    获取information信息并发送
-    Calls:          QByteArray data要发送的信息
-    Input:
-    Output:
-    Return:
-    Others:
-    ********************************************************************************/
+
+    /**
+     * @brief 获取要发送的数据
+     *
+     * @param data 要发送的数据
+     */
     void get_data_from_information(QByteArray data);
+
+    /**
+     * @brief 更改解码器IP进行实时显示或停止
+     *
+     * @param decoder_ip 解码器IP
+     */
+    void change_decoder_address(QString decoder_ip);
+
+    void set_address();
 };
 
 #endif // ENCODER_UDPSOCKET_H

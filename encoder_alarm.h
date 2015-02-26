@@ -3,6 +3,10 @@
 
 #include <QObject>
 
+/**
+ * @brief 错误报警类
+ * @todo
+ */
 class encoder_alarm : public QObject
 {
     Q_OBJECT

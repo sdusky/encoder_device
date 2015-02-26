@@ -1,59 +1,56 @@
-/***************************************************************
-Copyright  :邢大天
-Author     :邢大天
-Date       :2014-12-05
-Description:encoder_information
-            视频信息与传感器信息打包类，生成结构化视频信息
-****************************************************************/
 #ifndef ENCODER_INFORMATION_H
 #define ENCODER_INFORMATION_H
 
 #include <QObject>
 #include "encoder_package.h"
+/**
+ * @brief 信息打包类，生成结构化视频信息包
+ *        邢大天 2014-12-07
+ *        邢大天 2015-02-06
+ *
+ */
 class encoder_information : public QObject
 {
     Q_OBJECT
 public:
+    /**
+     * @brief
+     *
+     * @param parent
+     */
     explicit encoder_information(QObject *parent = 0);
 
 signals:
-    /*******************************************************************************
-    Signals:        void send_data_to_udp(QByteArray data);
-    Description:    向encoder_udpsocket类发送信号，触发其槽函数
-    Calls:
-    Input:          QByteArray data 需要通过udp发送的信息
-    Output:         无
-    Return:
-    Others:
-    ********************************************************************************/
+    /**
+     * @brief 信号
+     *
+     * @param data 需要udp发送的信息
+     */
     void send_data_to_udp(QByteArray data);
 private:
-    QByteArray data_send;
-    QByteArray data_sensor;
+    QByteArray data_send; /**< 需要发送的信息 */
+    QByteArray data_sensor; /**< 传感器信息 */
+    int        num_of_sensor; /**< 传感器数量 */
 public slots:
-    /*******************************************************************************
-    Function:       （SLOTS）void get_video_from_encoder(encoded_picture_information);
-    Description:    接收来自encoder_encoder类的图像信息并与encoder_sensor类传来的
-                    传感器信息进行融合
-    Calls:          发送send_data_to_udp(QByteArray data)信号；
-    Input:          encoded_picture_information
-    Output:         无
-    Return:
-    Others:         组成udp数据包其格式为
-                    6字节包长度+6字节视频长度+视频信息+4字节传感器信息长度+传感器信息
-                    调用方式为encoder_encoder类的need_to_merge信号
-    ********************************************************************************/
+
+    /**
+     * @brief 槽函数，接收编码后视频信息 融合传感器信息形成结构化信息
+     *        格式：
+     *          6字节包长度+1个字节传感器数量+6字节视频长度+视频信息+4字节传感器信息长度+传感器信息
+     *
+     * @param encoded_picture_information h.264编码结构体
+     */
     void get_video_from_encoder(encoded_picture_information);
-    /*******************************************************************************
-    Function:       （SLOTS）void get_infor_from_sensor(QByteArray sensor_data);
-    Description:    接收来自encoder_sensor类传来的传感器信息
-    Calls:
-    Input:          QByteArray sensor_data 传感器信息
-    Output:         无
-    Return:
-    Others:         调用方式为encoder_encoder类的need_to_merge信号
-    ********************************************************************************/
-    void get_infor_from_sensor(QByteArray sensor_data);
+
+
+
+    /**
+     * @brief 槽函数，接收传感器信息
+     *
+     * @param sensor_data  传感器信息
+     * @param sensor_num   已采集传感器数量
+     */
+    void get_infor_from_sensor(QByteArray sensor_data,int sensor_num);
 };
 
 #endif // ENCODER_INFORMATION_H
